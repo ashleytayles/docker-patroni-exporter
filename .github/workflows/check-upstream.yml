@@ -1,0 +1,65 @@
+name: Check Upstream Release
+
+on:
+  schedule:
+    # Daily at 06:00 UTC — detect new patroni_exporter releases quickly
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Check for new upstream release
+        id: upstream
+        run: |
+          LATEST=$(curl -sL https://api.github.com/repos/gopaytech/patroni_exporter/releases/latest | \
+                   jq -r '.tag_name')
+          CURRENT=$(grep -oP 'ARG PATRONI_EXPORTER_VERSION=\K.*' Dockerfile)
+          echo "latest=$LATEST"  >> "$GITHUB_OUTPUT"
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          if [ "$LATEST" != "$CURRENT" ] && [ "$LATEST" != "null" ]; then
+            echo "outdated=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "outdated=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create version-bump PR
+        if: steps.upstream.outputs.outdated == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          NEW_VERSION="${{ steps.upstream.outputs.latest }}"
+          BRANCH="auto/bump-patroni-exporter-${NEW_VERSION}"
+
+          # Skip if a PR or branch already exists for this version
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            echo "Branch $BRANCH already exists — skipping."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          sed -i "s|ARG PATRONI_EXPORTER_VERSION=.*|ARG PATRONI_EXPORTER_VERSION=${NEW_VERSION}|" Dockerfile
+          git add Dockerfile
+          git commit -m "chore: bump patroni_exporter to ${NEW_VERSION}"
+          git push origin "$BRANCH"
+          gh pr create \
+            --title "chore: bump patroni_exporter to ${NEW_VERSION}" \
+            --body "Automated PR — upstream release **${NEW_VERSION}** detected.
+
+          Current version: \`${{ steps.upstream.outputs.current }}\`
+          New version: \`${NEW_VERSION}\`
+
+          Merging this PR will trigger a Docker image rebuild and push." \
+            --base main \
+            --head "$BRANCH"

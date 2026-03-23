@@ -1,0 +1,96 @@
+name: Build and Publish Docker Image
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  schedule:
+    # Rebuild weekly (Monday 04:00 UTC) to pick up base image security patches
+    - cron: '0 4 * * 1'
+  workflow_dispatch:
+    inputs:
+      patroni_exporter_version:
+        description: 'Upstream patroni_exporter tag to build (e.g. v0.2.1)'
+        required: false
+
+env:
+  DOCKER_IMAGE: ${{ vars.DOCKERHUB_USERNAME }}/patroni-exporter
+
+jobs:
+  test:
+    uses: ./.github/workflows/integration-test.yml
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Resolve upstream version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.patroni_exporter_version }}" ]; then
+            RAW="${{ github.event.inputs.patroni_exporter_version }}"
+          else
+            RAW=$(grep -oP 'ARG PATRONI_EXPORTER_VERSION=\K.*' Dockerfile)
+          fi
+          # Keep the raw tag (with v prefix) for building from the upstream repo
+          echo "raw=${RAW}" >> "$GITHUB_OUTPUT"
+          # Strip leading 'v' for Docker image tags (0.2.1, not v0.2.1)
+          CLEAN="${RAW#v}"
+          echo "clean=${CLEAN}" >> "$GITHUB_OUTPUT"
+          echo "date=$(date -u +%Y%m%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.DOCKER_IMAGE }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ steps.version.outputs.clean }}
+            type=raw,value=${{ steps.version.outputs.clean }}-${{ steps.version.outputs.date }}
+            type=sha,prefix=
+            type=ref,event=pr
+
+      - name: Set up QEMU (multi-arch)
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to Docker Hub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            PATRONI_EXPORTER_VERSION=${{ steps.version.outputs.raw }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Update Docker Hub description
+        if: github.ref == 'refs/heads/main'
+        uses: peter-evans/dockerhub-description@v5
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ env.DOCKER_IMAGE }}
+          readme-filepath: ./README.md

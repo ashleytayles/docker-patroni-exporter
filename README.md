@@ -58,32 +58,26 @@ docker build -t patroni-exporter .
 docker build --build-arg PATRONI_EXPORTER_VERSION=v0.2.1 -t patroni-exporter .
 ```
 
-## CI/CD
+## Testing
 
-Everything runs via GitHub Actions — no external tooling required.
+Integration tests spin up a full Patroni cluster (3×etcd, 3×patroni, haproxy) using [batonogov/patroni-docker](https://github.com/batonogov/patroni-docker), then verify the exporter's `/metrics` endpoint returns valid Prometheus metrics.
 
-### Build & Publish (`.github/workflows/docker-publish.yml`)
+```bash
+# Build the image
+docker build -t patroni-exporter:test .
 
-- **On push to `main` or tag** — builds and pushes `latest`, floating version tag (`0.2.1`), and date-stamped tag (`0.2.1-20260323`) to Docker Hub.
-- **Weekly schedule (Monday 04:00 UTC)** — rebuilds to pick up Alpine security patches. The floating version tag is updated; a new date-stamped tag is created.
-- **Manual dispatch** — trigger a build for any version via `workflow_dispatch`.
+# Start the test cluster
+cd tests && docker compose up -d --wait --wait-timeout 180
 
-### Upstream Release Check (`.github/workflows/check-upstream.yml`)
+# Run the test
+./tests/test-metrics.sh
 
-- **Daily schedule (06:00 UTC)** — queries the upstream repo for new releases.
-- If a new version is found, automatically creates a PR bumping the `ARG PATRONI_EXPORTER_VERSION` in the Dockerfile.
-- Merging the PR triggers the build workflow, publishing the updated image.
-- Skips if a bump PR/branch already exists for that version.
-- Can also be triggered manually via `workflow_dispatch`.
+# Tear down
+cd tests && docker compose down -v
+```
 
-**Required repository configuration:**
-
-| Type | Name | Value |
-|---|---|---|
-| Variable | `DOCKERHUB_USERNAME` | Your Docker Hub username |
-| Secret | `DOCKERHUB_TOKEN` | Docker Hub access token |
+Integration tests must pass before any image is published to Docker Hub.
 
 ## License
 
 Apache License 2.0 — same as the upstream patroni_exporter project.
-# docker-patroni-exporter
