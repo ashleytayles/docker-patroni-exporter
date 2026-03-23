@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/patroni-logo.svg" alt="Patroni Logo" width="200">
+</p>
+
 # docker-patroni-exporter
 
 Dockerised [patroni_exporter](https://github.com/gopaytech/patroni_exporter) — a Prometheus exporter for Patroni cluster metrics.
@@ -26,10 +30,10 @@ When the base image is rebuilt for security patches, the floating `0.2.1` tag is
 
 ```bash
 docker run -d \
-  -e PATRONI_HOST=http://patroni-node:8008 \
+  --network host \
+  -e PATRONI_HOST=http://localhost \
   -e PATRONI_PORT=8008 \
-  -p 9933:9933 \
-  your-dockerhub-user/patroni-exporter:0.2.1
+  ashleytayles/patroni-exporter:0.2.1
 ```
 
 ## Environment Variables

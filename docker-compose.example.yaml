@@ -1,0 +1,13 @@
+# Example: run patroni-exporter with host networking against a local Patroni node.
+#
+# Usage:
+#   docker compose -f docker-compose.example.yaml up -d
+
+services:
+  patroni-exporter:
+    image: ashleytayles/patroni-exporter:latest
+    network_mode: host
+    environment:
+      PATRONI_HOST: http://localhost
+      PATRONI_PORT: "8008"
+    restart: unless-stopped
