@@ -4,6 +4,12 @@
 
 # docker-patroni-exporter
 
+[![Build](https://github.com/ashleytayles/docker-patroni-exporter/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/ashleytayles/docker-patroni-exporter/actions/workflows/docker-publish.yml)
+[![Integration Test](https://github.com/ashleytayles/docker-patroni-exporter/actions/workflows/integration-test.yml/badge.svg)](https://github.com/ashleytayles/docker-patroni-exporter/actions/workflows/integration-test.yml)
+[![Docker Hub](https://img.shields.io/docker/v/ashleytayles/patroni-exporter?sort=semver&logo=docker&label=Docker%20Hub)](https://hub.docker.com/r/ashleytayles/patroni-exporter)
+[![Base Image](https://img.shields.io/badge/base_image-alpine%3A3.20-0D597F?logo=alpinelinux)](https://hub.docker.com/_/alpine)
+[![Upstream Version](https://img.shields.io/badge/patroni__exporter-v0.2.1-blue?logo=prometheus)](https://github.com/gopaytech/patroni_exporter/releases)
+
 Dockerised [patroni_exporter](https://github.com/gopaytech/patroni_exporter) — a Prometheus exporter for Patroni cluster metrics.
 
 ## Features
